@@ -30,11 +30,21 @@ function LoginPage() {
       })
 
       if (!response.ok) {
-        const data = (await response.json()) as { message?: string }
-        throw new Error(data.message ?? 'Login failed')
+        // Try to parse error response
+        const text = await response.text()
+        let errorMessage = 'Login failed'
+        if (text) {
+          try {
+            const data = JSON.parse(text) as { message?: string; error?: string }
+            errorMessage = data.message ?? data.error ?? errorMessage
+          } catch {
+            errorMessage = text
+          }
+        }
+        throw new Error(errorMessage)
       }
 
-      // Redirect to home after successful login
+      // Success - redirect to home
       await navigate({ to: '/' })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed')

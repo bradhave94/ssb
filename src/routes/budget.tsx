@@ -1,7 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { asc, eq } from 'drizzle-orm'
+import { Edit, Plus, Trash2 } from 'lucide-react'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { db } from '@/db'
@@ -177,70 +179,179 @@ export const Route = createFileRoute('/budget')({
 })
 
 function BudgetPage() {
+  const queryClient = useQueryClient()
   const [showGroupDialog, setShowGroupDialog] = useState(false)
   const [showEnvelopeDialog, setShowEnvelopeDialog] = useState(false)
+  const [editingEnvelope, setEditingEnvelope] = useState<{
+    id: string
+    name: string
+    budgetAmountCents: number
+  } | null>(null)
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null)
   const [groupName, setGroupName] = useState('')
   const [envelopeName, setEnvelopeName] = useState('')
   const [envelopeAmount, setEnvelopeAmount] = useState('')
 
   // Fetch active template
-  const { data, isLoading, refetch } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['budget-template'],
     queryFn: async () => {
       const response = await fetch('/budget')
+      if (!response.ok) throw new Error('Failed to load budget')
       const json = (await response.json()) as { template: unknown }
       return json.template
     },
   })
 
-  const handleCreateGroup = async () => {
+  // Mutations
+  const createGroupMutation = useMutation({
+    mutationFn: async (groupData: { budgetTemplateId: string; name: string }) => {
+      const response = await fetch('/budget', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'createGroup', data: groupData }),
+      })
+      if (!response.ok) throw new Error('Failed to create group')
+      return response.json() as Promise<{ group: unknown }>
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['budget-template'] })
+      toast.success('Envelope group created')
+      setGroupName('')
+      setShowGroupDialog(false)
+    },
+    onError: () => {
+      toast.error('Failed to create group')
+    },
+  })
+
+  const createEnvelopeMutation = useMutation({
+    mutationFn: async (envelopeData: { groupId: string; name: string; budgetAmountCents: number }) => {
+      const response = await fetch('/budget', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'createEnvelope', data: envelopeData }),
+      })
+      if (!response.ok) throw new Error('Failed to create envelope')
+      return response.json() as Promise<{ envelope: unknown }>
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['budget-template'] })
+      toast.success('Envelope created')
+      setEnvelopeName('')
+      setEnvelopeAmount('')
+      setEditingEnvelope(null)
+      setShowEnvelopeDialog(false)
+      setSelectedGroup(null)
+    },
+    onError: () => {
+      toast.error('Failed to create envelope')
+    },
+  })
+
+  const updateEnvelopeMutation = useMutation({
+    mutationFn: async (updateData: { id: string; name?: string; budgetAmountCents?: number }) => {
+      const response = await fetch('/budget', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'updateEnvelope', data: updateData }),
+      })
+      if (!response.ok) throw new Error('Failed to update envelope')
+      return response.json() as Promise<{ success: boolean }>
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['budget-template'] })
+      toast.success('Envelope updated')
+      setEnvelopeName('')
+      setEnvelopeAmount('')
+      setEditingEnvelope(null)
+      setShowEnvelopeDialog(false)
+    },
+    onError: () => {
+      toast.error('Failed to update envelope')
+    },
+  })
+
+  const archiveEnvelopeMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await fetch('/budget', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'archiveEnvelope', data: { id } }),
+      })
+      if (!response.ok) throw new Error('Failed to archive envelope')
+      return response.json() as Promise<{ success: boolean }>
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['budget-template'] })
+      toast.success('Envelope archived')
+    },
+    onError: () => {
+      toast.error('Failed to archive envelope')
+    },
+  })
+
+  const handleCreateGroup = () => {
     if (!data || !groupName.trim()) return
-
-    await fetch('/budget', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'createGroup',
-        data: {
-          budgetTemplateId: (data as { id: string }).id,
-          name: groupName,
-        },
-      }),
+    createGroupMutation.mutate({
+      budgetTemplateId: (data as { id: string }).id,
+      name: groupName,
     })
-
-    setGroupName('')
-    setShowGroupDialog(false)
-    void refetch()
   }
 
-  const handleCreateEnvelope = async () => {
-    if (!selectedGroup || !envelopeName.trim()) return
-
+  const handleSaveEnvelope = () => {
+    if (!envelopeName.trim()) return
     const amountCents = Math.round(parseFloat(envelopeAmount || '0') * 100)
 
-    await fetch('/budget', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'createEnvelope',
-        data: {
-          groupId: selectedGroup,
-          name: envelopeName,
-          budgetAmountCents: amountCents,
-        },
-      }),
-    })
+    if (editingEnvelope) {
+      updateEnvelopeMutation.mutate({
+        id: editingEnvelope.id,
+        name: envelopeName,
+        budgetAmountCents: amountCents,
+      })
+    } else {
+      if (!selectedGroup) return
+      createEnvelopeMutation.mutate({
+        groupId: selectedGroup,
+        name: envelopeName,
+        budgetAmountCents: amountCents,
+      })
+    }
+  }
 
-    setEnvelopeName('')
-    setEnvelopeAmount('')
-    setShowEnvelopeDialog(false)
-    setSelectedGroup(null)
-    void refetch()
+  const handleEditEnvelope = (envelope: { id: string; name: string; budgetAmountCents: number }) => {
+    setEditingEnvelope(envelope)
+    setEnvelopeName(envelope.name)
+    setEnvelopeAmount((envelope.budgetAmountCents / 100).toFixed(2))
+    setShowEnvelopeDialog(true)
+  }
+
+  const handleArchiveEnvelope = (id: string) => {
+    if (confirm('Are you sure you want to archive this envelope?')) {
+      archiveEnvelopeMutation.mutate(id)
+    }
   }
 
   if (isLoading) {
-    return <div className="p-8">Loading...</div>
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-center">
+          <div className="text-lg font-medium">Loading budget...</div>
+          <div className="text-sm text-muted-foreground">Please wait</div>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="p-8">
+        <div className="rounded-md bg-red-50 p-4 text-red-800">
+          <h2 className="font-semibold">Error loading budget</h2>
+          <p className="text-sm">{error instanceof Error ? error.message : 'Unknown error'}</p>
+        </div>
+      </div>
+    )
   }
 
   if (!data) {
@@ -266,47 +377,119 @@ function BudgetPage() {
     }>
   }
 
+  // Calculate totals
+  const totalBudget = template.envelopeGroups.reduce(
+    (sum, group) => sum + group.envelopes.reduce((gSum, env) => gSum + env.budgetAmountCents, 0),
+    0,
+  )
+
   return (
-    <div className="p-8">
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Budget: {template.name}</h1>
-          <p className="text-muted-foreground">Manage envelope groups and budget allocations</p>
+    <div className="p-8 max-w-6xl mx-auto">
+      {/* Header */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h1 className="text-3xl font-bold">Budget: {template.name}</h1>
+            <p className="text-muted-foreground">Manage envelope groups and budget allocations</p>
+          </div>
+          <Button onClick={() => setShowGroupDialog(true)} size="lg">
+            <Plus className="w-4 h-4 mr-2" />
+            Add Group
+          </Button>
         </div>
-        <Button onClick={() => setShowGroupDialog(true)}>Add Envelope Group</Button>
+
+        {/* Total Budget Summary */}
+        <Card className="p-4 bg-primary/5">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm text-muted-foreground">Total Monthly Budget</div>
+              <div className="text-3xl font-bold text-primary">{formatMoney(totalBudget)}</div>
+            </div>
+            <div className="text-right">
+              <div className="text-sm text-muted-foreground">Envelope Groups</div>
+              <div className="text-2xl font-semibold">{template.envelopeGroups.length}</div>
+            </div>
+          </div>
+        </Card>
       </div>
 
+      {/* Envelope Groups */}
       <div className="space-y-4">
-        {template.envelopeGroups.map((group) => (
-          <Card key={group.id} className="p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-lg font-semibold">{group.name}</h3>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  setSelectedGroup(group.id)
-                  setShowEnvelopeDialog(true)
-                }}
-              >
-                Add Envelope
-              </Button>
-            </div>
-
-            {group.envelopes.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No envelopes yet</p>
-            ) : (
-              <div className="space-y-2">
-                {group.envelopes.map((envelope) => (
-                  <div key={envelope.id} className="flex items-center justify-between rounded border p-2">
-                    <span className="font-medium">{envelope.name}</span>
-                    <span className="text-sm text-muted-foreground">{formatMoney(envelope.budgetAmountCents)}</span>
-                  </div>
-                ))}
-              </div>
-            )}
+        {template.envelopeGroups.length === 0 ? (
+          <Card className="p-8 text-center">
+            <p className="text-muted-foreground mb-4">No envelope groups yet. Create one to get started!</p>
+            <Button onClick={() => setShowGroupDialog(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Create First Group
+            </Button>
           </Card>
-        ))}
+        ) : (
+          template.envelopeGroups.map((group) => {
+            const groupTotal = group.envelopes.reduce((sum, env) => sum + env.budgetAmountCents, 0)
+
+            return (
+              <Card key={group.id} className="p-6">
+                <div className="mb-4 flex items-center justify-between border-b pb-3">
+                  <div>
+                    <h3 className="text-xl font-semibold">{group.name}</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {group.envelopes.length} envelope{group.envelopes.length !== 1 ? 's' : ''} • {formatMoney(groupTotal)}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setSelectedGroup(group.id)
+                      setEditingEnvelope(null)
+                      setEnvelopeName('')
+                      setEnvelopeAmount('')
+                      setShowEnvelopeDialog(true)
+                    }}
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    Add Envelope
+                  </Button>
+                </div>
+
+                {group.envelopes.length === 0 ? (
+                  <p className="text-sm text-center text-muted-foreground py-4">No envelopes in this group yet</p>
+                ) : (
+                  <div className="space-y-2">
+                    {group.envelopes.map((envelope) => (
+                      <div
+                        key={envelope.id}
+                        className="flex items-center justify-between rounded-lg border bg-card p-3 hover:bg-accent/50 transition-colors"
+                      >
+                        <div className="flex-1">
+                          <div className="font-medium">{envelope.name}</div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
+                            <div className="font-semibold text-lg">{formatMoney(envelope.budgetAmountCents)}</div>
+                            <div className="text-xs text-muted-foreground">per month</div>
+                          </div>
+                          <div className="flex gap-1">
+                            <Button size="sm" variant="ghost" onClick={() => handleEditEnvelope(envelope)}>
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => handleArchiveEnvelope(envelope.id)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+            )
+          })
+        )}
       </div>
 
       {/* Create Group Dialog */}
@@ -316,7 +499,7 @@ function BudgetPage() {
             <DialogTitle>Create Envelope Group</DialogTitle>
             <DialogDescription>Add a new group to organize your budget envelopes.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-4 py-4">
             <div>
               <Label htmlFor="group-name">Group Name</Label>
               <Input
@@ -324,6 +507,10 @@ function BudgetPage() {
                 value={groupName}
                 onChange={(e) => setGroupName(e.target.value)}
                 placeholder="e.g., Monthly Bills, Savings Goals"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleCreateGroup()
+                }}
+                autoFocus
               />
             </div>
           </div>
@@ -331,19 +518,35 @@ function BudgetPage() {
             <Button variant="outline" onClick={() => setShowGroupDialog(false)}>
               Cancel
             </Button>
-            <Button onClick={handleCreateGroup}>Create Group</Button>
+            <Button onClick={handleCreateGroup} disabled={!groupName.trim() || createGroupMutation.isPending}>
+              {createGroupMutation.isPending ? 'Creating...' : 'Create Group'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Create Envelope Dialog */}
-      <Dialog open={showEnvelopeDialog} onOpenChange={setShowEnvelopeDialog}>
+      {/* Create/Edit Envelope Dialog */}
+      <Dialog
+        open={showEnvelopeDialog}
+        onOpenChange={(open) => {
+          setShowEnvelopeDialog(open)
+          if (!open) {
+            setEditingEnvelope(null)
+            setEnvelopeName('')
+            setEnvelopeAmount('')
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create Envelope</DialogTitle>
-            <DialogDescription>Add a new budget envelope with a monthly allocation.</DialogDescription>
+            <DialogTitle>{editingEnvelope ? 'Edit Envelope' : 'Create Envelope'}</DialogTitle>
+            <DialogDescription>
+              {editingEnvelope
+                ? 'Update the envelope name and monthly budget allocation.'
+                : 'Add a new budget envelope with a monthly allocation.'}
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-4 py-4">
             <div>
               <Label htmlFor="envelope-name">Envelope Name</Label>
               <Input
@@ -351,25 +554,52 @@ function BudgetPage() {
                 value={envelopeName}
                 onChange={(e) => setEnvelopeName(e.target.value)}
                 placeholder="e.g., Groceries, Rent, Gas"
+                autoFocus
               />
             </div>
             <div>
-              <Label htmlFor="envelope-amount">Monthly Budget</Label>
+              <Label htmlFor="envelope-amount">Monthly Budget ($)</Label>
               <Input
                 id="envelope-amount"
                 type="number"
                 step="0.01"
+                min="0"
                 value={envelopeAmount}
                 onChange={(e) => setEnvelopeAmount(e.target.value)}
                 placeholder="0.00"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveEnvelope()
+                }}
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowEnvelopeDialog(false)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowEnvelopeDialog(false)
+                setEditingEnvelope(null)
+                setEnvelopeName('')
+                setEnvelopeAmount('')
+              }}
+            >
               Cancel
             </Button>
-            <Button onClick={handleCreateEnvelope}>Create Envelope</Button>
+            <Button
+              onClick={handleSaveEnvelope}
+              disabled={
+                !envelopeName.trim() ||
+                !envelopeAmount ||
+                createEnvelopeMutation.isPending ||
+                updateEnvelopeMutation.isPending
+              }
+            >
+              {createEnvelopeMutation.isPending || updateEnvelopeMutation.isPending
+                ? 'Saving...'
+                : editingEnvelope
+                  ? 'Update Envelope'
+                  : 'Create Envelope'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
