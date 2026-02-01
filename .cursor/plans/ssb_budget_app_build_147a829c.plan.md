@@ -34,7 +34,7 @@ isProject: false
 
 # Super Simple Budget (SSB) - Implementation Plan
 
-> **Reference:** For complete specification details, see [ssd_scope.md](../ssb_scope.md)
+> **Reference:** For complete specification details, see [ssd_scope.md](../../.cursor\ssd_scope.md)
 
 ## Phase 1: Foundation
 
@@ -53,7 +53,7 @@ This creates a TanStack Start project with:
 - TypeScript
 - Bun as package manager
 
-> **Reference:** See [Tech Stack](../ssd_scope.md#tech-stack) in ssd_scope.md for complete technology choices and versions.
+> **Reference:** See [Tech Stack](../../.cursor\ssd_scope.md#tech-stack) in ssd_scope.md for complete technology choices and versions.
 
 ### 1.2 Install Additional Dependencies
 
@@ -123,7 +123,7 @@ Create `app/db/schema.ts` with all tables from spec:
 - `transactions.transferPairId` - Links paired transfer transactions between accounts
 - Balance update strategy uses SQL increment/decrement for race condition safety
 
-> **Reference:** See [Database Schema section](../ssd_scope.md#database-schema) in ssd_scope.md for complete table definitions and field details.
+> **Reference:** See [Database Schema section](../../.cursor\ssd_scope.md#database-schema) in ssd_scope.md for complete table definitions and field details.
 
 ### 1.4a Database Connection Setup
 
@@ -209,7 +209,7 @@ RESEND_API_KEY=re_xxxxx
 EMAIL_FROM=noreply@yourdomain.com
 ```
 
-> **Reference:** See [Better Auth Setup](../ssd_scope.md#3-better-auth-setup) in ssd_scope.md for detailed configuration notes.
+> **Reference:** See [Better Auth Setup](../../.cursor\ssd_scope.md#3-better-auth-setup) in ssd_scope.md for detailed configuration notes.
 
 ### 1.6 Create Base Layouts
 
@@ -219,7 +219,7 @@ EMAIL_FROM=noreply@yourdomain.com
 - `app/components/layouts/MemberLayout.tsx` - Simple layout with "+ Add Expense" prominent
 - `app/routes/__root.tsx` - Auth check, redirect to login if not authenticated
 
-> **Reference:** See [UI/UX Design section](../ssd_scope.md#uiux-design) in ssd_scope.md for layout mockups and design details.
+> **Reference:** See [UI/UX Design section](../../.cursor\ssd_scope.md#uiux-design) in ssd_scope.md for layout mockups and design details.
 
 ### 1.7 Protected Routes
 
@@ -232,7 +232,7 @@ export async function requireAdmin() { /* ... */ }
 export async function getUserRole(userId: string) { /* ... */ }
 ```
 
-> **Reference:** See [User Roles & Permissions](../ssd_scope.md#user-roles--permissions) in ssd_scope.md for detailed permission matrix.
+> **Reference:** See [User Roles & Permissions](../../.cursor\ssd_scope.md#user-roles--permissions) in ssd_scope.md for detailed permission matrix.
 
 ### 1.8 Seeding Script
 
@@ -385,7 +385,7 @@ const form = useForm({
 - Cannot hard delete envelope with transactions (show "Archive instead")
 - Warn when archiving envelope with pending transactions
 
-> **Reference:** See [Edge Cases & Behavior Rules](../ssd_scope.md#edge-cases--behavior-rules) in ssd_scope.md for comprehensive edge case handling.
+> **Reference:** See [Edge Cases & Behavior Rules](../../.cursor\ssd_scope.md#edge-cases--behavior-rules) in ssd_scope.md for comprehensive edge case handling.
 
 ---
 
@@ -465,7 +465,7 @@ async function createTransfer(fromAccountId, toAccountId, amountCents, descripti
 }
 ```
 
-> **Reference:** See [Account Transfers (Paired Transactions)](../ssd_scope.md#account-transfers-paired-transactions) in ssd_scope.md for transfer implementation details and rules.
+> **Reference:** See [Account Transfers (Paired Transactions)](../../.cursor\ssd_scope.md#account-transfers-paired-transactions) in ssd_scope.md for transfer implementation details and rules.
 
 ### 3.2 Cached Balance Strategy
 
@@ -511,7 +511,7 @@ function calculateRunningBalances(transactions, startingBalanceCents) {
 }
 ```
 
-> **Reference:** See [Running Balance Calculation](../ssd_scope.md#5a-running-balance-calculation-account-view) in ssd_scope.md for detailed algorithm and implementation notes.
+> **Reference:** See [Running Balance Calculation](../../.cursor\ssd_scope.md#5a-running-balance-calculation-account-view) in ssd_scope.md for detailed algorithm and implementation notes.
 
 ### 3.4 UI Components
 
@@ -533,7 +533,7 @@ function calculateRunningBalances(transactions, startingBalanceCents) {
 - `app/components/features/accounts/TransactionEditModal.tsx`
 - `app/components/features/accounts/TransferModal.tsx` - Account-to-account transfer (creates paired transactions)
 
-> **Reference:** See [Account Transaction View (Detailed)](../ssd_scope.md#6a-account-transaction-view-detailed) in ssd_scope.md for complete desktop and mobile UI mockups and specifications.
+> **Reference:** See [Account Transaction View (Detailed)](../../.cursor\ssd_scope.md#6a-account-transaction-view-detailed) in ssd_scope.md for complete desktop and mobile UI mockups and specifications.
 
 ### 3.5 Routes
 
@@ -556,7 +556,7 @@ Total Income (month): $X,XXX
 = Available: $XXX
 ```
 
-> **Reference:** See [Available to Budget (Computed Value)](../ssd_scope.md#available-to-budget-computed-value) in ssd_scope.md for formula and calculation details.
+> **Reference:** See [Available to Budget (Computed Value)](../../.cursor\ssd_scope.md#available-to-budget-computed-value) in ssd_scope.md for formula and calculation details.
 
 ### 3.8 Reconciliation (Admin)
 
@@ -581,7 +581,7 @@ Total Income (month): $X,XXX
 - Collapsible description field
 - Big "Save" button
 
-> **Reference:** See [Transaction Entry - Member Flow](../ssd_scope.md#4-transaction-entry) and [Member Mobile Experience](../ssd_scope.md#member-mobile-experience-primary-use-case) in ssd_scope.md for detailed UX mockups and flow.
+> **Reference:** See [Transaction Entry - Member Flow](../../.cursor\ssd_scope.md#4-transaction-entry) and [Member Mobile Experience](../../.cursor\ssd_scope.md#member-mobile-experience-primary-use-case) in ssd_scope.md for detailed UX mockups and flow.
 
 ### 4.2 Server Functions
 
@@ -663,7 +663,7 @@ async function ensureRecurringGenerated() {
 }
 ```
 
-> **Reference:** See [Recurring Transaction Generation (On-Demand)](../ssd_scope.md#6-recurring-transaction-generation-on-demand) in ssd_scope.md for complete implementation with code examples and edge case handling.
+> **Reference:** See [Recurring Transaction Generation (On-Demand)](../../.cursor\ssd_scope.md#6-recurring-transaction-generation-on-demand) in ssd_scope.md for complete implementation with code examples and edge case handling.
 
 ### 6.3 UI Components
 
@@ -741,7 +741,7 @@ Envelope: Archived: Old Category Name (italic, muted)
 - Budget
 - General
 
-> **Reference:** See [Settings & Administration](../ssd_scope.md#11-settings--administration) in ssd_scope.md for detailed settings UI mockups and functionality.
+> **Reference:** See [Settings & Administration](../../.cursor\ssd_scope.md#11-settings--administration) in ssd_scope.md for detailed settings UI mockups and functionality.
 
 ### 8.2 User Management
 
@@ -975,7 +975,7 @@ RESEND_API_KEY="re_xxxxx"
 EMAIL_FROM="noreply@yourdomain.com"
 ```
 
-> **Reference:** See [Deployment Strategy](../ssd_scope.md#deployment-strategy) in ssd_scope.md for complete deployment instructions.
+> **Reference:** See [Deployment Strategy](../../.cursor\ssd_scope.md#deployment-strategy) in ssd_scope.md for complete deployment instructions.
 
 ---
 
