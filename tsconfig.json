@@ -1,6 +1,7 @@
 {
-  "include": ["**/*.ts", "**/*.tsx", "eslint.config.js", "prettier.config.js", "vite.config.js"],
-  
+  "include": ["**/*.ts", "**/*.tsx"],
+  "exclude": [".output", ".vinxi", "drizzle", "node_modules"],
+
   "compilerOptions": {
     "target": "ES2022",
     "jsx": "react-jsx",
@@ -21,6 +22,16 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
+
+    /* Strict Type Checking - No ANY allowed */
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictBindCallApply": true,
+    "strictPropertyInitialization": true,
+    "noImplicitThis": true,
+    "alwaysStrict": true,
+
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]

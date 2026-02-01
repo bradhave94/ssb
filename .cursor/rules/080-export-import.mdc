@@ -34,14 +34,14 @@ if (existing) {
   // Auto-rename: "Budget 2026" → "Budget 2026 (2)"
   let suffix = 2
   let newName = `${templateName} (${suffix})`
-  
+
   while (await tx.query.budgetTemplates.findFirst({
     where: eq(budgetTemplates.name, newName)
   })) {
     suffix++
     newName = `${templateName} (${suffix})`
   }
-  
+
   templateName = newName
 }
 ```

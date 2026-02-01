@@ -1,0 +1,69 @@
+# No ANY Type Policy
+
+## Strict Policy
+**AVOID using `any` type at ALL COSTS.**
+
+## Enforcement
+The codebase enforces strict TypeScript and ESLint rules:
+
+```typescript
+// tsconfig.json
+"noImplicitAny": true,
+"strictNullChecks": true,
+"strictFunctionTypes": true,
+// ... all strict flags enabled
+
+// eslint.config.js
+'@typescript-eslint/no-explicit-any': 'error',
+'@typescript-eslint/no-unsafe-assignment': 'error',
+'@typescript-eslint/no-unsafe-member-access': 'error',
+'@typescript-eslint/no-unsafe-call': 'error',
+'@typescript-eslint/no-unsafe-return': 'error',
+```
+
+## When You Must Disable (RARE)
+Only disable for third-party library integration where types are genuinely unavailable:
+
+```typescript
+// ONLY when necessary - document WHY
+// eslint-disable-next-line @typescript-eslint/no-unsafe-call
+return thirdPartyLib.untypedMethod(data)
+```
+
+## Alternatives to ANY
+1. **Use `unknown`**: For truly unknown types, use `unknown` and type guard
+2. **Use generics**: `<T>` for flexible typing
+3. **Create interfaces**: Define proper types even if verbose
+4. **Use union types**: `string | number` instead of `any`
+5. **Use type assertions**: `as Type` only when you're certain
+
+## Examples
+
+### ❌ BAD
+```typescript
+function process(data: any) {
+  return data.value
+}
+```
+
+### ✅ GOOD
+```typescript
+interface Data {
+  value: string
+}
+
+function process(data: Data) {
+  return data.value
+}
+
+// OR for truly unknown:
+function process(data: unknown) {
+  if (typeof data === 'object' && data !== null && 'value' in data) {
+    return (data as Data).value
+  }
+  throw new Error('Invalid data')
+}
+```
+
+## Current Status
+✅ Codebase has ZERO `any` types (checked 2026-02-01)
