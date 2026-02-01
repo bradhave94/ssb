@@ -1,0 +1,122 @@
+# TanStack Start Server Patterns
+
+## Server Routes (Not Server Functions)
+
+TanStack Start RC uses **Server Routes**, not separate server function files.
+
+### ❌ WRONG - Don't do this
+```typescript
+// ❌ This doesn't exist in @tanstack/react-start
+import { createServerFn } from '@tanstack/react-start/server'
+
+// ❌ Separate server function files don't follow TanStack Start pattern
+// src/lib/server/budget-templates.ts
+export const getBudgetTemplates = createServerFn()...
+```
+
+### ✅ CORRECT - Server Routes
+```typescript
+// src/routes/budget.tsx
+import { createFileRoute } from '@tanstack/react-router'
+
+export const Route = createFileRoute('/budget')({
+  component: BudgetPage,
+  server: {
+    handlers: {
+      GET: async ({ request }) => {
+        // Server logic here
+        const data = await db.query.something()
+        return Response.json({ data })
+      },
+      POST: async ({ request }) => {
+        const body = await request.json()
+        // Handle POST
+        return Response.json({ success: true })
+      },
+    },
+  },
+})
+
+function BudgetPage() {
+  // Component here
+}
+```
+
+## Server Handler Requirements
+
+### Authentication
+Always pass the request object to auth helpers:
+```typescript
+GET: async ({ request }) => {
+  await requireAdmin(request)  // ✅ Pass request
+  // NOT: await requireAdmin()  // ❌ Missing required arg
+}
+```
+
+### Database Inserts
+Always provide required fields:
+```typescript
+// ✅ CORRECT
+const now = new Date()
+await db.insert(budgetTemplates).values({
+  id: uuidv4(),           // Required
+  name: validated.name,
+  isActive: false,
+  createdAt: now,         // Required
+  updatedAt: now,         // Required
+})
+
+// ❌ WRONG - Missing id, createdAt, updatedAt
+await db.insert(budgetTemplates).values({
+  name: validated.name,
+  isActive: false,
+})
+```
+
+## Drizzle Query Patterns
+
+### OrderBy - Use Direct Import
+```typescript
+import { asc, desc } from 'drizzle-orm'
+
+// ✅ CORRECT - Clean typing
+const results = await db.query.envelopeGroups.findMany({
+  orderBy: [asc(envelopeGroups.sortOrder)],
+})
+
+// ⚠️ WORKS but has typing issues
+const results = await db.query.envelopeGroups.findMany({
+  orderBy: (groups, { asc }) => [asc(groups.sortOrder)],
+})
+```
+
+## Action-Based POST Handlers
+
+For multiple operations in one route:
+```typescript
+POST: async ({ request }) => {
+  const body = await request.json() as { action: string; data: unknown }
+
+  switch (body.action) {
+    case 'createTemplate': {
+      const validated = schema.parse(body.data)
+      // Handle create
+      return Response.json({ template })
+    }
+    case 'updateTemplate': {
+      // Handle update
+      return Response.json({ template })
+    }
+    default:
+      return Response.json({ error: 'Unknown action' }, { status: 400 })
+  }
+}
+```
+
+## No eslint-disable
+
+Never use `/* eslint-disable */` to hide type issues. Fix the root cause:
+- Import proper types
+- Add explicit type annotations
+- Use type assertions only when truly necessary
+- Check for missing required function arguments
