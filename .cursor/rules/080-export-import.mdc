@@ -1,0 +1,62 @@
+---
+description: Export/import with auto-rename for duplicate names
+globs:
+  - "**/export.ts"
+  - "**/import.ts"
+  - "**/*.ts"
+alwaysApply: false
+---
+
+# Export/Import Rules
+
+## Export Format
+- JSON with version, exportDate, and data sections
+- Support selective export (templates, accounts, transactions, recurring)
+- Never export user credentials/sessions
+
+## Import Strategy
+1. **Wrap in DB transaction**: All-or-nothing import
+2. **Regenerate all IDs**: Use fresh UUIDs to avoid conflicts
+3. **Map old IDs to new IDs**: Maintain relationships (envelope→group, transaction→account, etc.)
+
+## Auto-Rename Duplicates
+**Critical**: Check for duplicate names and auto-rename during import
+
+### Budget Templates
+```typescript
+// Check for existing name
+let templateName = template.name
+const existing = await tx.query.budgetTemplates.findFirst({
+  where: eq(budgetTemplates.name, templateName)
+})
+
+if (existing) {
+  // Auto-rename: "Budget 2026" → "Budget 2026 (2)"
+  let suffix = 2
+  let newName = `${templateName} (${suffix})`
+  
+  while (await tx.query.budgetTemplates.findFirst({
+    where: eq(budgetTemplates.name, newName)
+  })) {
+    suffix++
+    newName = `${templateName} (${suffix})`
+  }
+  
+  templateName = newName
+}
+```
+
+### Accounts
+- Same auto-rename pattern as templates
+- Check `accounts.name` for duplicates
+
+### What Gets Auto-Renamed
+- Budget templates: Yes
+- Accounts: Yes
+- Envelope groups: Within same template (not globally)
+- Envelopes: Within same group (not globally)
+
+## Import Validation
+- Check data version compatibility
+- Validate all foreign key mappings exist before commit
+- If any validation fails, rollback entire import

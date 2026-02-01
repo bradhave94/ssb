@@ -1,0 +1,45 @@
+---
+description: Cached account balance strategy with atomic SQL updates
+globs:
+  - "**/*.ts"
+  - "**/*.tsx"
+alwaysApply: true
+---
+
+# Cached Balance (currentBalanceCents)
+
+## Why Cache?
+- Computing balance from transaction sum is slow for accounts with many transactions
+- Maintain `currentBalanceCents` on accounts table for instant lookups
+
+## Update Strategy
+**CRITICAL: Always update balance atomically in same DB transaction as transaction create/update/delete**
+
+### Pattern: Use SQL Increment/Decrement
+```typescript
+// CORRECT: Race-condition safe
+await tx.update(accounts)
+  .set({
+    currentBalanceCents: sql`${accounts.currentBalanceCents} + ${delta}`
+  })
+  .where(eq(accounts.id, accountId))
+
+// WRONG: Race condition prone
+const account = await tx.query.accounts.findFirst(...)
+await tx.update(accounts).set({
+  currentBalanceCents: account.currentBalanceCents + delta
+})
+```
+
+## Rules
+1. **Create transaction**: Update `currentBalanceCents` atomically (only if cleared)
+2. **Update transaction**: Reverse old effect, apply new effect atomically
+3. **Delete transaction**: Reverse effect atomically
+4. **Transfers**: Update BOTH accounts atomically in same transaction
+5. **Account creation**: Set `currentBalanceCents = initialBalanceCents`
+6. **Pending transactions**: Do NOT affect `currentBalanceCents` until cleared
+
+## Integrity Check
+- Provide `recomputeAccountBalance(id)` function as fallback
+- Recomputes from scratch by summing all cleared transactions
+- Use for data integrity verification or repair

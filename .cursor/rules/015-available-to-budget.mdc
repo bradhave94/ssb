@@ -1,0 +1,52 @@
+---
+description: Available to Budget computation rules
+globs:
+  - "**/budget/**"
+  - "**/envelopes/**"
+  - "**/*.ts"
+  - "**/*.tsx"
+alwaysApply: false
+---
+
+# Available to Budget
+
+## What It Is
+Unassigned income = money that came in but hasn't been allocated to any envelope yet.
+
+## Formula
+```typescript
+function getAvailableToBudgetCents(month: Date): number {
+  // 1. Sum cleared income for the month (EXCLUDE TRANSFERS)
+  const totalIncomeCents = db.query.transactions
+    .where(type = 'income')
+    .where(status = 'cleared')
+    .where(date within month)
+    .where(transferPairId is null)  // ← CRITICAL: Exclude transfers
+    .sum(amountCents)
+
+  // 2. Sum envelope budgets from active template
+  const totalBudgetedCents = db.query.envelopes
+    .where(template is active)
+    .where(isArchived = false)
+    .sum(budgetAmountCents)
+
+  return totalIncomeCents - totalBudgetedCents
+}
+```
+
+## Display Rules
+- **Positive**: Money available to assign → Green
+- **Zero**: All income budgeted (ideal) → Gray
+- **Negative**: Over-budgeted → Red
+
+## Critical: Exclude Transfers
+**Transfers are NOT income.** They move money between accounts but don't affect budget allocation.
+- Always filter out transactions where `transferPairId IS NOT NULL`
+- Only count true income (paycheck, refund, etc.)
+
+## UI Location
+- Show prominently on budget/envelope dashboard
+- Update when:
+  - Income transactions cleared
+  - Envelope budgets changed
+  - Active template changed

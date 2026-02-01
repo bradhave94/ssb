@@ -1,0 +1,32 @@
+---
+description: Deployment + DB runtime rules for Vercel + Turso (libSQL) with Drizzle
+globs:
+  - "app/db/**"
+  - "**/db/**"
+  - "drizzle.config.*"
+  - "drizzle/**"
+  - "**/*.env*"
+alwaysApply: true
+---
+
+# Vercel + Turso (libSQL) Rules
+
+We deploy on **Vercel** and use **Turso/libSQL** for the database.
+
+## Environment variables
+- `DATABASE_URL` = libsql URL (e.g. `libsql://...turso.io`) for production, or `file:./data.db` for local dev
+- `DATABASE_AUTH_TOKEN` = Turso auth token (production only, not needed for local file)
+- `BETTER_AUTH_SECRET` = Random string for Better Auth
+- `BETTER_AUTH_URL` = App URL (e.g. `https://your-app.vercel.app`)
+- `RESEND_API_KEY` = Resend API key for emails
+- `EMAIL_FROM` = Verified sender email
+
+## DB client
+- Use `@libsql/client` and Drizzle's libsql adapter
+- Local dev: Uses file-based SQLite (`file:./data.db`)
+- Production: Uses Turso connection with auth token
+
+## Migrations
+- Use `drizzle-kit` migrations and run them against Turso in CI/deploy workflow
+- Do not rely on implicit schema sync
+- Run migrations before deployment

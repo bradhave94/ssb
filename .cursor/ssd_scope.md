@@ -224,12 +224,18 @@ accounts {
   name: string // e.g., "Checking", "Savings", "Credit Card"
   type: enum('checking', 'savings', 'credit')
   initialBalanceCents: integer // stored in cents // Starting balance
-  // currentBalance is computed from transactions; do not persist
+  currentBalanceCents: integer // Cached balance, updated atomically on every transaction
   isArchived: boolean // default false, for hiding/soft delete
   createdAt: timestamp
   updatedAt: timestamp
 }
 ```
+
+**Balance Update Strategy:**
+- `currentBalanceCents` is cached for performance
+- Updated atomically within the same DB transaction as creating/updating/deleting transactions
+- Uses SQL increment/decrement for race condition safety
+- Recomputed from scratch if data integrity check fails
 
 ### Transactions Table
 
@@ -669,11 +675,128 @@ Members see cleared status as **read-only** (cannot toggle).
 - Payment transactions show as positive (reduce balance)
 - Expenses show as negative (increase owed)
 
-### 7. Credit Card Workflow
-- Expenses on credit card → Increase balance (negative)
-- "Pay off Credit Card" transaction:
-  - Moves money from Checking → Credit Card
-  - Records as transaction in both accounts
+### 7. Account Transfers
+
+Transfers move money between accounts without affecting envelope budgets.
+
+**Common Use Cases:**
+- Move savings: Checking → Savings
+- Pay off credit card: Checking → Credit Card
+- Move emergency fund: Savings → Checking
+
+**How Transfers Work:**
+- Creates **two paired transactions** linked by `transferPairId`
+- Transaction 1: Expense from source account
+- Transaction 2: Income to destination account
+- Both have `envelopeId` and `incomeCategoryId` set to null (no envelope affected)
+- Balance changes in both accounts, but budget is unaffected
+
+**Example: Transfer $500 from Checking to Savings**
+```typescript
+// Transaction 1 (Checking account)
+{
+  type: 'expense',
+  amountCents: 50000,
+  accountId: 'checking-id',
+  transferPairId: 'uuid-abc',
+  description: 'Transfer to Savings',
+  envelopeId: null,
+  incomeCategoryId: null,
+  status: 'cleared'
+}
+
+// Transaction 2 (Savings account)
+{
+  type: 'income',
+  amountCents: 50000,
+  accountId: 'savings-id',
+  transferPairId: 'uuid-abc', // SAME UUID
+  description: 'Transfer from Checking',
+  envelopeId: null,
+  incomeCategoryId: null,
+  status: 'cleared'
+}
+```
+
+**UI Flow (Admin Only):**
+
+Desktop:
+```
+┌────────────────────────────────┐
+│  Transfer Money                │
+├────────────────────────────────┤
+│                                │
+│  From Account:                 │
+│  [Checking ▼]                  │
+│  Current Balance: $2,456.78    │
+│                                │
+│  To Account:                   │
+│  [Savings ▼]                   │
+│  Current Balance: $5,000.00    │
+│                                │
+│  Amount:                       │
+│  [$_________]                  │
+│                                │
+│  Date:                         │
+│  [02/01/2026]                  │
+│                                │
+│  Description (optional):       │
+│  [Moving emergency fund___]    │
+│                                │
+│  [Cancel]  [Transfer Money]    │
+│                                │
+└────────────────────────────────┘
+```
+
+Mobile:
+```
+┌─────────────────────────┐
+│  Transfer Money         │
+├─────────────────────────┤
+│                         │
+│  From                   │
+│  [Checking ▼]           │
+│  Balance: $2,456.78     │
+│                         │
+│  To                     │
+│  [Savings ▼]            │
+│  Balance: $5,000.00     │
+│                         │
+│  Amount                 │
+│  [$_______]             │
+│                         │
+│  Date                   │
+│  [02/01/2026]           │
+│                         │
+│  Description            │
+│  [Optional_______]      │
+│                         │
+│  [Transfer Money]       │
+│                         │
+└─────────────────────────┘
+```
+
+**Transfer Button Location:**
+- Admin dashboard → Accounts tab → "Transfer Money" button
+- Individual account view → "Transfer" action button
+
+**Transfer Display in Account Views:**
+- Shows as regular transaction with special indicator
+- Description: "Transfer to [Account Name]" or "Transfer from [Account Name]"
+- Can click to see paired transaction
+- Badge/icon: ↔️ or "Transfer" label
+
+**Validation:**
+- Cannot transfer to same account
+- Cannot transfer negative amounts
+- Cannot transfer more than available balance (for checking/savings)
+- Can transfer to pay off credit card (up to owed amount)
+
+**Credit Card Payment Example:**
+Pay off $843.21 credit card bill from checking:
+- From: Checking (balance goes down $843.21)
+- To: Credit Card (balance goes from -$843.21 to $0.00)
+- Both accounts updated atomically
 
 ### 8. Envelope Budget Tracking
 - Show each envelope:
@@ -1366,12 +1489,20 @@ Members have limited access to personal settings via `/settings`:
    - Create income categories
    - Link to budget template
 
-4. Income transaction entry:
+4. Account transfers (Admin only):
+   - Transfer form (from account, to account, amount, date, description)
+   - Validation (cannot transfer to same account, must be positive amount)
+   - Create paired transactions with shared `transferPairId`
+   - Update both account balances atomically
+   - Display transfers with special indicator in account views
+   - Link to view paired transaction
+
+5. Income transaction entry:
    - Admin can add income (income must always belong to an account)
    - Assign to "Available to Budget"
    - Link to income category
 
-5. Available to Budget display:
+6. Available to Budget display:
    - Show total income for month
    - Show assigned to envelopes
    - Show remaining to assign
@@ -1904,29 +2035,190 @@ const userRole = await getUserRole(userId)
 const accountId = transaction.accountId ?? userRole.defaultAccount
 ```
 
-### 5. Account Balance Calculation
+### 5. Account Balance Calculation (Cached Strategy)
+
+**Strategy:** Cache `currentBalanceCents` in the accounts table and update atomically with every transaction.
+
+**Create Transaction with Balance Update:**
 ```typescript
-// Computed field or materialized view
-function calculateAccountBalance(accountId: string) {
-  const account = db.query.accounts.findFirst({
-    where: eq(accounts.id, accountId)
+async function createTransaction(data: TransactionInput) {
+  return await db.transaction(async (tx) => {
+    // 1. Insert transaction
+    const [transaction] = await tx.insert(transactions).values(data).returning()
+
+    // 2. Update account balance atomically (if cleared)
+    if (data.status === 'cleared') {
+      const delta = data.type === 'income' ? data.amountCents : -data.amountCents
+
+      await tx.update(accounts)
+        .set({
+          currentBalanceCents: sql`${accounts.currentBalanceCents} + ${delta}`,
+          updatedAt: new Date()
+        })
+        .where(eq(accounts.id, data.accountId))
+    }
+
+    return transaction
   })
-
-  const transactions = db.query.transactions.findMany({
-    where: and(
-      eq(transactions.accountId, accountId),
-      eq(transactions.status, 'cleared')
-    )
-  })
-
-  const balanceCents = account.initialBalanceCents +
-    transactions.reduce((sum, t) => {
-      return sum + (t.type === 'income' ? t.amountCents : -t.amountCents)
-    }, 0)
-
-  return balanceCents
 }
 ```
+
+**Update Transaction Status (Pending → Cleared):**
+```typescript
+async function markTransactionCleared(transactionId: string) {
+  return await db.transaction(async (tx) => {
+    // 1. Get transaction details
+    const transaction = await tx.query.transactions.findFirst({
+      where: eq(transactions.id, transactionId)
+    })
+
+    if (!transaction || transaction.status === 'cleared') {
+      return // Already cleared or not found
+    }
+
+    // 2. Update transaction status
+    await tx.update(transactions)
+      .set({
+        status: 'cleared',
+        clearedAt: new Date(),
+        clearedBy: getCurrentUserId()
+      })
+      .where(eq(transactions.id, transactionId))
+
+    // 3. Update account balance
+    const delta = transaction.type === 'income'
+      ? transaction.amountCents
+      : -transaction.amountCents
+
+    await tx.update(accounts)
+      .set({
+        currentBalanceCents: sql`${accounts.currentBalanceCents} + ${delta}`,
+        updatedAt: new Date()
+      })
+      .where(eq(accounts.id, transaction.accountId))
+  })
+}
+```
+
+**Delete Transaction:**
+```typescript
+async function deleteTransaction(transactionId: string) {
+  return await db.transaction(async (tx) => {
+    // 1. Get transaction
+    const transaction = await tx.query.transactions.findFirst({
+      where: eq(transactions.id, transactionId)
+    })
+
+    if (!transaction) return
+
+    // 2. If cleared, reverse the balance change
+    if (transaction.status === 'cleared') {
+      const delta = transaction.type === 'income'
+        ? -transaction.amountCents  // Reverse income
+        : transaction.amountCents   // Reverse expense
+
+      await tx.update(accounts)
+        .set({
+          currentBalanceCents: sql`${accounts.currentBalanceCents} + ${delta}`,
+          updatedAt: new Date()
+        })
+        .where(eq(accounts.id, transaction.accountId))
+    }
+
+    // 3. Delete transaction
+    await tx.delete(transactions).where(eq(transactions.id, transactionId))
+  })
+}
+```
+
+**Transfer Implementation (Two Paired Transactions):**
+```typescript
+async function createTransfer(data: TransferInput) {
+  return await db.transaction(async (tx) => {
+    const transferPairId = generateUUID()
+
+    // Transaction 1: Expense from source account
+    await tx.insert(transactions).values({
+      type: 'expense',
+      amountCents: data.amountCents,
+      accountId: data.fromAccountId,
+      transferPairId,
+      description: `Transfer to ${data.toAccountName}`,
+      date: data.date,
+      status: 'cleared',
+      envelopeId: null,
+      incomeCategoryId: null,
+      createdBy: getCurrentUserId()
+    })
+
+    // Transaction 2: Income to destination account
+    await tx.insert(transactions).values({
+      type: 'income',
+      amountCents: data.amountCents,
+      accountId: data.toAccountId,
+      transferPairId,
+      description: `Transfer from ${data.fromAccountName}`,
+      date: data.date,
+      status: 'cleared',
+      envelopeId: null,
+      incomeCategoryId: null,
+      createdBy: getCurrentUserId()
+    })
+
+    // Update both account balances atomically
+    await tx.update(accounts)
+      .set({
+        currentBalanceCents: sql`${accounts.currentBalanceCents} - ${data.amountCents}`,
+        updatedAt: new Date()
+      })
+      .where(eq(accounts.id, data.fromAccountId))
+
+    await tx.update(accounts)
+      .set({
+        currentBalanceCents: sql`${accounts.currentBalanceCents} + ${data.amountCents}`,
+        updatedAt: new Date()
+      })
+      .where(eq(accounts.id, data.toAccountId))
+  })
+}
+```
+
+**Data Integrity Check (Run periodically or on-demand):**
+```typescript
+async function validateAccountBalances() {
+  const accounts = await db.query.accounts.findMany()
+
+  for (const account of accounts) {
+    // Recalculate from transactions
+    const transactions = await db.query.transactions.findMany({
+      where: and(
+        eq(transactions.accountId, account.id),
+        eq(transactions.status, 'cleared')
+      )
+    })
+
+    const calculatedBalance = account.initialBalanceCents +
+      transactions.reduce((sum, t) => {
+        return sum + (t.type === 'income' ? t.amountCents : -t.amountCents)
+      }, 0)
+
+    // If mismatch, update to correct value
+    if (calculatedBalance !== account.currentBalanceCents) {
+      console.warn(`Balance mismatch for account ${account.id}. Correcting...`)
+      await db.update(accounts)
+        .set({ currentBalanceCents: calculatedBalance })
+        .where(eq(accounts.id, account.id))
+    }
+  }
+}
+```
+
+**Why Cached?**
+- ⚡ Fast lookups (no aggregation needed)
+- 📊 Better UX (instant balance display)
+- 🔒 Atomic updates (using SQL increment)
+- ✅ Always accurate (updated in same transaction)
+
 
 ### 5a. Running Balance Calculation (Account View)
 ```typescript
@@ -2458,9 +2750,31 @@ export const importData = createServerFn('POST', async (data: ExportData) => {
         const newTemplateId = generateId()
         idMap.set(template.id, newTemplateId)
 
+        // Check for duplicate template name and auto-rename if needed
+        let templateName = template.name
+        const existingTemplate = await tx.query.budgetTemplates.findFirst({
+          where: eq(budgetTemplates.name, templateName)
+        })
+
+        if (existingTemplate) {
+          // Auto-rename with suffix: "Budget 2026" → "Budget 2026 (2)"
+          let suffix = 2
+          let newName = `${templateName} (${suffix})`
+
+          while (await tx.query.budgetTemplates.findFirst({
+            where: eq(budgetTemplates.name, newName)
+          })) {
+            suffix++
+            newName = `${templateName} (${suffix})`
+          }
+
+          templateName = newName
+        }
+
         await tx.insert(budgetTemplates).values({
           ...template,
           id: newTemplateId,
+          name: templateName, // Use potentially renamed name
           isActive: false // Don't override active template
         })
 

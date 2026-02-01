@@ -1,0 +1,22 @@
+---
+description: Account reconciliation (admin-only) and adjustment transaction rules
+globs:
+  - "**/reconcile/**"
+  - "**/accounts/**"
+  - "**/*.ts"
+  - "**/*.tsx"
+alwaysApply: false
+---
+
+# Reconciliation
+
+Admin-only reconcile flow:
+- Admin enters actual bank balance (as-of date)
+- Compute diff against cached `currentBalanceCents`
+- Create an adjustment transaction that works with existing math:
+  - `type = income` if diff > 0
+  - `type = expense` if diff < 0
+  - `envelopeId = null`, `incomeCategoryId = null`
+  - `status = cleared` (recommended)
+  - mark with a flag (e.g. `source = 'reconciliation'`) if implemented
+- Adjustment transaction updates `currentBalanceCents` atomically like any other transaction

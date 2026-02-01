@@ -1,0 +1,38 @@
+---
+description: Archive/soft-delete strategy for envelopes and accounts
+globs:
+  - "**/*.ts"
+  - "**/*.tsx"
+alwaysApply: true
+---
+
+# Archive & Delete Rules
+
+## Soft Delete (Archive)
+- Envelopes and accounts have `isArchived` boolean flag
+- Archived items don't show in active lists but remain in history
+- Archived items cannot be selected for new transactions
+
+## Envelope Delete Strategy
+1. **Soft delete (archive)**: Always allowed
+   - Set `isArchived = true`
+   - Warn if envelope has pending transactions
+   - Archived envelopes still show in transaction history (grayed/italicized)
+2. **Hard delete**: Only if NO transactions exist
+   - Show error: "Cannot delete envelope with transactions. Archive instead."
+
+## Account Delete Strategy
+1. **Soft delete (archive)**: Always allowed
+   - Set `isArchived = true`
+   - Archived accounts don't show in active lists
+   - Cannot be used for new transactions/transfers
+2. **Hard delete**: Only if NO transactions exist
+
+## UI Conventions
+- Archived items in history: Gray text, italic, prefix "Archived: [name]"
+- Active lists: Filter `where isArchived = false` by default
+- Settings: Show "View Archived" toggle to manage archived items
+
+## Budget Template Delete
+- Cannot delete active template
+- Only allow delete if template is not active

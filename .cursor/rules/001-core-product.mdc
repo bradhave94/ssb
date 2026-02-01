@@ -1,0 +1,32 @@
+---
+description: Core product rules for SSB (scope, invariants, guardrails)
+globs:
+  - "**/*"
+alwaysApply: true
+---
+
+# Super Simple Budget (SSB) - Core Rules
+
+Authoritative spec: `ssd_scope.md`
+
+## Non-negotiables
+- Follow the spec exactly; do not invent features.
+- Keep the member (wife) experience **stupid simple**.
+- Prefer small, safe changes over rewrites.
+
+## Roles
+- **Admin**: full control; can approve/clear; can create income; manage templates/envelopes/accounts/settings.
+- **Member**: can create **expense** transactions only; always **pending**; cannot clear/approve; cannot manage budgets/accounts.
+
+## Balances & Status
+- Continuous accounts (no monthly account reset).
+- Only **CLEARED** transactions affect account balances and running balances.
+- Pending transactions display as pending and do not affect balances.
+
+## Budgeting
+- Overspending allowed (negative remaining).
+- Envelope carryover is default **ON** (`carry_over_envelopes` default true) but can be turned off.
+
+## Transfers
+- Transfers are implemented as **paired transactions** using `transferPairId`.
+- Transfer transactions must have **no envelopeId and no incomeCategoryId**.

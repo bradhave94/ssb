@@ -1,0 +1,49 @@
+---
+description: Tech stack choices: TanStack ecosystem, Better Auth, shadcn/ui, Zod
+globs:
+  - "**/*.ts"
+  - "**/*.tsx"
+  - "**/*.config.*"
+alwaysApply: true
+---
+
+# Tech Stack Rules
+
+## Framework
+- **TanStack Start (v1 RC)**: Full-stack React with SSR
+- Use server functions for type-safe RPC (no REST API)
+- File-based routing in `app/routes/`
+
+## TanStack Ecosystem
+- **TanStack Query (v5)**: Server state management, caching, optimistic updates
+- **TanStack Form (v1)**: Type-safe forms with server validation
+- **TanStack Table (v8)**: Data grids (admin account transaction view)
+
+## Authentication
+- **Better Auth (v1.4+)**: Use with Drizzle adapter
+- Email/password auth only (no OAuth for now)
+- Session management built-in
+- Use for role-based access (admin/member)
+
+## Validation
+- **Zod (v4)**: Schema validation
+- Use `@tanstack/zod-form-adapter` for TanStack Form integration
+- Define schemas in `app/lib/validations.ts`
+- Validate on both client and server
+
+## UI
+- **shadcn/ui (Vega preset)**: Component library
+- **Tailwind CSS v4**: Styling
+- **Lucide icons**: Icon library
+- Use shadcn CLI to add components: `bunx --bun shadcn@latest add [component]`
+
+## Runtime & Package Manager
+- **Bun**: Package manager and runtime
+- Use `bun add` for dependencies
+- Use `bunx --bun` for CLI commands
+
+## Database
+- **Drizzle ORM**: TypeScript-first ORM
+- **@libsql/client**: SQLite/Turso client
+- Define schema in `app/db/schema.ts`
+- Use `drizzle-kit` for migrations

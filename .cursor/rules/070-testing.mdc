@@ -1,0 +1,47 @@
+---
+description: Minimal tests that prevent finance bugs
+globs:
+  - "**/*.test.ts"
+  - "**/*.spec.ts"
+  - "**/tests/**"
+alwaysApply: false
+---
+
+# Testing Must-Haves
+
+## Money parse/format
+- "$54.13" -> 5413 cents
+- Negatives: "-$54.13" -> -5413
+- Edge cases: "$0.00", "$1,234.56"
+
+## Transaction invariants
+- Income cannot have envelopeId
+- Expense cannot have incomeCategoryId
+- Transfers have neither and are paired
+- Transfers must have matching amounts
+
+## Balance correctness
+- Cleared-only balance calculation
+- Running balances computed bottom-up (oldest first)
+- Pending transactions don't affect balance
+- `currentBalanceCents` matches sum of cleared transactions
+
+## Cached balance atomic updates
+- Creating transaction updates `currentBalanceCents`
+- Deleting transaction reverses balance change
+- Updating transaction applies correct delta
+- Transfers update both accounts atomically
+
+## Recurring idempotency
+- Generating twice makes no duplicates
+- Check `(recurringTransactionId, date)` uniqueness
+
+## Reconciliation
+- Diff sign creates correct type (income/expense)
+- Adjustment creates cleared transaction
+- Balance updates atomically
+
+## Archive/Delete
+- Cannot hard delete envelope with transactions
+- Archived items don't show in active lists
+- Archived items still visible in history

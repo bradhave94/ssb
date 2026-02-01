@@ -1,0 +1,26 @@
+---
+description: Recurring transactions (on-demand generation, autoClear, System user)
+globs:
+  - "**/recurring/**"
+  - "**/services/**"
+  - "**/*.ts"
+alwaysApply: false
+---
+
+# Recurring Transactions
+
+## On-demand generation (no cron)
+- Run generation on dashboard/account load
+- Backfill missing dates since last generated marker
+- Must be race-safe via DB transaction
+- Use `lastGenerated` table to track last generation date
+
+## Status
+- If template `autoClear = true` => generated `status = cleared`
+  - Updates `currentBalanceCents` atomically when generated
+- Else => generated `status = pending`
+  - Does NOT affect balance until admin clears
+
+## createdBy
+- Use a real seeded **System** user id (`SYSTEM_USER_ID`) to satisfy FK constraints
+- System user should be created during database seeding

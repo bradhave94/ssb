@@ -1,0 +1,40 @@
+---
+description: DB invariants: transaction rules, transfer rules, recurring idempotency, balance updates
+globs:
+  - "app/db/**"
+  - "**/server/**"
+  - "**/*.ts"
+alwaysApply: true
+---
+
+# DB Invariants (Must Enforce Server-Side)
+
+## Transaction invariants
+- If `type = income`:
+  - `incomeCategoryId` is required (unless transfer)
+  - `envelopeId` must be null
+- If `type = expense`:
+  - `envelopeId` is required (unless transfer)
+  - `incomeCategoryId` must be null
+- If `transferPairId` is set:
+  - `envelopeId` and `incomeCategoryId` must be null for both sides
+  - Two transactions share the same `transferPairId`
+  - Editing/deleting must be atomic across both rows
+  - Both account balances must be updated atomically
+
+## Status rules
+- Member-created transactions: always `status = pending`
+- Only admin can change `status` to `cleared`
+- Pending never affects balances/running balances
+- Only cleared transactions affect `currentBalanceCents`
+
+## Balance update rules
+- **CRITICAL**: Every transaction create/update/delete MUST update `account.currentBalanceCents` atomically
+- Use SQL increment: `sql\`currentBalanceCents + ${delta}\``
+- Wrap in DB transaction for race-condition safety
+- Only cleared transactions affect balance
+
+## Recurring idempotency
+- Generated transactions must be idempotent:
+  - Unique `(recurringTransactionId, date)` (or equivalent) and check-before-insert
+- Generated transaction `status` depends on recurring template `autoClear`

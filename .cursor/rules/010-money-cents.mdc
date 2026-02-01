@@ -1,0 +1,22 @@
+---
+description: Money rules: store integer cents, never decimals; parse/format helpers
+globs:
+  - "**/*.ts"
+  - "**/*.tsx"
+alwaysApply: true
+---
+
+# Money Rules (Cents Everywhere)
+
+## Storage
+- Store all monetary values as integer cents:
+  - `amountCents`, `initialBalanceCents`, `budgetAmountCents`, etc.
+- Never store floats/decimals for money in DB or domain models.
+
+## Input
+- Accept user input like `$54.13` and convert to cents safely.
+- No floating point math for money.
+
+## Display
+- Use a single helper: `formatMoney(amountCents)`.
+- Never call `.toFixed(2)` on raw cents unless dividing by 100 first.

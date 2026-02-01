@@ -1,0 +1,28 @@
+---
+description: Member Quick Add Expense UX (sacred) + account default behavior
+globs:
+  - "app/**/*.tsx"
+  - "**/components/**"
+alwaysApply: false
+---
+
+# Member UX Rules
+
+## Quick Add Expense (member)
+Keep it minimal:
+- Amount (large numeric input, currency formatted)
+- Envelope (searchable dropdown, active only)
+- Account (defaults to **admin-assigned default account**, not last-used)
+- Optional description (collapsible/hidden by default)
+
+**Goal**: Member can add expense in <30 seconds
+
+## Account default
+- Always default to admin-set default account for the member
+- If >1 account, allow quick toggle (chips/segmented control)
+- Never default to "last used" account
+
+## Cleared UI
+- Cleared status visible to all
+- Cleared toggle interactive only for admin
+- Member sees their pending transactions but cannot approve them
