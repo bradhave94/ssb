@@ -106,7 +106,6 @@ export const Route = createFileRoute('/budget')({
                 name: validated.name,
                 sortOrder: maxSort + 1,
                 createdAt: now,
-                updatedAt: now,
               })
               .returning()
 

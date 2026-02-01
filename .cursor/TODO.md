@@ -29,7 +29,7 @@ After completing each major step or phase:
 
 ---
 
-## Current Phase: Phase 1 - Foundation
+## Current Phase: Phase 2 - Budget Templates & Envelopes
 
 ### Setup Tasks
 
@@ -52,13 +52,13 @@ After completing each major step or phase:
 - [X] Database migrations run without errors
 - [X] Seed script creates System user + sample data
 - [X] No linter errors (`bun run lint` passes)
-- [ ] Can login with admin user (auth integration pending)
-- [ ] Can login with member user (auth integration pending)
+- [X] Can signup with new account
+- [X] Can login with credentials
 - [ ] Admin sees admin layout with full navigation
 - [ ] Member sees simplified layout
 - [ ] Protected routes redirect to login when not authenticated
 
-**Phase 1 Status:** ✅ COMPLETE - Foundation is solid, ready for Phase 2
+**Phase 1 Status:** ✅ COMPLETE - Foundation ready, auth working
 
 ---
 

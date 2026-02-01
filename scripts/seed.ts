@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from 'uuid'
+import { eq } from 'drizzle-orm'
 import { db } from '../src/db'
 import {
   accounts,
@@ -12,6 +13,16 @@ import {
 
 async function seed() {
   console.log('🌱 Seeding database...')
+
+  // Check if already seeded
+  const existingSystemUser = await db.query.users.findFirst({
+    where: eq(users.email, 'system@ssb.local'),
+  })
+
+  if (existingSystemUser) {
+    console.log('⚠️  Database already seeded (system user exists). Skipping...')
+    return
+  }
 
   // =============================================================================
   // System User (for recurring transaction generation)

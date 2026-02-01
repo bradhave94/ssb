@@ -1,16 +1,17 @@
-import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
-export const Route = createFileRoute('/login')({
-  component: LoginPage,
+export const Route = createFileRoute('/signup')({
+  component: SignupPage,
 })
 
-function LoginPage() {
+function SignupPage() {
   const navigate = useNavigate()
+  const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -22,22 +23,22 @@ function LoginPage() {
     setLoading(true)
 
     try {
-      const response = await fetch('/api/auth/sign-in/email', {
+      const response = await fetch('/api/auth/sign-up/email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, name }),
         credentials: 'include',
       })
 
       if (!response.ok) {
         const data = (await response.json()) as { message?: string }
-        throw new Error(data.message ?? 'Login failed')
+        throw new Error(data.message ?? 'Signup failed')
       }
 
-      // Redirect to home after successful login
+      // Redirect to home after successful signup
       await navigate({ to: '/' })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed')
+      setError(err instanceof Error ? err.message : 'Signup failed')
     } finally {
       setLoading(false)
     }
@@ -51,7 +52,7 @@ function LoginPage() {
             <div className="w-16 h-16 bg-primary rounded-md" />
           </div>
           <CardTitle className="text-2xl text-center">Super Simple Budget</CardTitle>
-          <CardDescription className="text-center">Sign in to your account</CardDescription>
+          <CardDescription className="text-center">Create your account</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -60,6 +61,19 @@ function LoginPage() {
                 {error}
               </div>
             )}
+
+            <div className="space-y-2">
+              <Label htmlFor="name">Name</Label>
+              <Input
+                id="name"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="John Doe"
+                required
+                disabled={loading}
+              />
+            </div>
 
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
@@ -84,19 +98,18 @@ function LoginPage() {
                 placeholder="••••••••"
                 required
                 disabled={loading}
+                minLength={8}
               />
             </div>
 
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Signing in...' : 'Sign In'}
+              {loading ? 'Creating account...' : 'Sign Up'}
             </Button>
 
-            <div className="flex justify-between text-sm text-muted-foreground">
-              <a href="/forgot-password" className="hover:underline">
-                Forgot password?
-              </a>
-              <a href="/signup" className="text-primary hover:underline">
-                Sign up
+            <div className="text-center text-sm text-muted-foreground">
+              Already have an account?{' '}
+              <a href="/login" className="text-primary hover:underline">
+                Sign in
               </a>
             </div>
           </form>
