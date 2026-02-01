@@ -59,7 +59,11 @@ bun run preview
 
 ## Environment Variables
 
-Create a `.env` file:
+Copy `.env.example` to `.env` and fill in values:
+
+```bash
+cp .env.example .env
+```
 
 | Variable | Description |
 |----------|-------------|
